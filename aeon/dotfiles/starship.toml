@@ -1,0 +1,20 @@
+# AEON-Prompt (Starship) — Noir-Gold-Akzent.
+# Nutzen:  starship init + ENV STARSHIP_CONFIG=~/aeon/dotfiles/starship.toml
+add_newline = true
+
+format = """[ ](#C9A458)$directory$git_branch$git_status$character"""
+
+[directory]
+style = "bold #ECE6D8"
+truncation_length = 3
+
+[git_branch]
+symbol = " "
+style = "#C9A458"
+
+[git_status]
+style = "#6FA98C"
+
+[character]
+success_symbol = "[›](#C9A458)"
+error_symbol = "[›](#C26B5A)"

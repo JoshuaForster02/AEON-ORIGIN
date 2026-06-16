@@ -1,0 +1,43 @@
+# AEON Hub — Raspberry Pi (Docker)
+# Läuft OBENDRAUF auf Raspberry Pi OS. Nichts Bestehendes wird angetastet.
+# Ports bewusst hoch gewählt, um Konflikte mit laufenden Diensten (Pi-hole etc.)
+# zu vermeiden. Bei Bedarf anpassen.
+
+services:
+  vitals-api:
+    build: ./vitals-api
+    container_name: aeon-hub-api
+    restart: unless-stopped
+    environment:
+      - OLLAMA_URL=${OLLAMA_URL:-http://aeon-rig:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+    volumes:
+      - ./data/vitals:/data
+    # Kein Port nötig — Zugriff läuft über Caddy unter /api
+
+  n8n:
+    image: n8nio/n8n
+    container_name: aeon-n8n
+    restart: unless-stopped
+    environment:
+      - GENERIC_TIMEZONE=${TZ:-Europe/Berlin}
+      - N8N_HOST=${AEON_HOST:-aeon-pi}
+      - N8N_PORT=5678
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    ports:
+      - "5678:5678"          # Automatisierungs-Engine (Workflows)
+
+  caddy:
+    image: caddy:2
+    container_name: aeon-caddy
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./dashboard:/srv/dashboard:ro
+      - ./data/caddy:/data
+    ports:
+      - "8080:80"            # AEON-Dashboard:  http://aeon-pi:8080
+
+# Pi-hole bewusst NICHT enthalten (DNS-Port 53 kollidiert oft).
+# Wenn du Focus-Mode-DNS-Blocking willst, ergänzen wir das gezielt.
