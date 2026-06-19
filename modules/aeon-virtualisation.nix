@@ -153,10 +153,8 @@
     virtiofsd       # schneller Host↔VM Datei-Share
     virt-viewer     # leichtgewichtiger VM-Viewer (Backup-Display)
     looking-glass-client  # VM-Bild im Linux-Fenster (erfordert IVSHMEM in XML)
-  ];
 
-  # GPU-Info Werkzeug (aeon gpu)
-  environment.systemPackages = lib.mkAfter [
+    # GPU-Info Werkzeug (aeon gpu)
     (pkgs.writeShellScriptBin "aeon-gpu-info" ''
       G=$'\033[38;2;201;164;88m'; D=$'\033[38;2;154;147;132m'; R=$'\033[0m'
       printf "\n  %sRX 6800 IOMMU-Status%s\n" "$G" "$R"
