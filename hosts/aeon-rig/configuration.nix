@@ -160,6 +160,11 @@ in
     boot.kernelParams = [ "vfio-pci.ids=1002:73bf,1002:ab28" ];
     boot.initrd.kernelModules = [ "vfio_pci" "vfio_iommu_type1" "vfio" ];
     boot.blacklistedKernelModules = [ "amdgpu" ];
+    # AMD-Reset-Fix nur hier (GPU ist hier auf vfio, nicht amdgpu -> sicher)
+    boot.kernelModules = [ "vendor_reset" ];
+    boot.extraModulePackages = lib.mkIf
+      (builtins.hasAttr "vendor-reset" config.boot.kernelPackages)
+      [ config.boot.kernelPackages.vendor-reset ];
     # Desktop in diesem Profil aus (Host headless wie ein Hypervisor)
     services.displayManager.sddm.enable = lib.mkForce false;
     services.displayManager.autoLogin.enable = lib.mkForce false;

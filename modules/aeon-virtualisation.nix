@@ -17,26 +17,10 @@
     "iommu=pt"           # Pass-Through Modus — volle PCIe-Bandbreite
     "kvm.ignore_msrs=1"  # verhindert BSOD in Windows-VMs
     "kvm_amd.nested=1"   # Nested Virtualisation (schadet nicht)
-    "hugepagesz=2M"
-    "hugepages=8192"     # 16 GB statische Hugepages für Windows-VM
   ];
 
-  # VFIO-Module: müssen VOR amdgpu laden damit der Passthrough greift
-  boot.initrd.kernelModules = [ "vfio_pci" "vfio_iommu_type1" "vfio" ];
-  boot.kernelModules        = [ "kvm_amd" "vendor_reset" ];
-
-  # vfio_pci den RX 6800 IDs zuweisen (Navi 21 Video + Audio)
-  boot.extraModprobeConfig = ''
-    options vfio_pci ids=1002:73bf,1002:ab28
-    softdep amdgpu pre: vfio_pci
-  '';
-
-  # vendor-reset: AMD Navi GPU-Reset-Fix.
-  # OHNE dieses Modul → System friert beim GPU-Reattach ein (Black Screen).
-  # Quelle: https://github.com/gnif/vendor-reset
-  boot.extraModulePackages = lib.mkIf
-    (builtins.hasAttr "vendor-reset" config.boot.kernelPackages)
-    [ config.boot.kernelPackages.vendor-reset ];
+  # Normalbetrieb: amdgpu treibt die GPU (Desktop). VFIO/vendor_reset nur im Gaming-Profil.
+  boot.kernelModules = [ "kvm_amd" ];
 
   # ── KVM / libvirt ─────────────────────────────────────────────────────────
   virtualisation.libvirtd = {
