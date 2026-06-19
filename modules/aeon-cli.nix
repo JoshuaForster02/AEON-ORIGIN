@@ -32,6 +32,9 @@ let
 
         printf "  ''${G}▸''${R} Starte Windows-VM … (GPU wird in ~5s übergeben)\n"
         printf "  ''${D}Log: journalctl -u libvirtd -f''${R}\n\n"
+        printf "  ''${D}Watchdog aktiv: Desktop kommt automatisch zurueck, falls kein Bild (kein Power-off noetig).''${R}\n\n"
+        sudo ${pkgs.systemd}/bin/systemctl reset-failed aeon-winwatch 2>/dev/null || true
+        sudo ${pkgs.systemd}/bin/systemd-run --on-active=150 --unit=aeon-winwatch --collect /run/current-system/sw/bin/aeon-winwatch >/dev/null 2>&1 || true
         ${pkgs.libvirt}/bin/virsh -c qemu:///system start windows || {
           printf "\n  ''${G}✗''${R} Start fehlgeschlagen. Logs:\n"
           printf "    journalctl -u libvirtd -n 30\n"
