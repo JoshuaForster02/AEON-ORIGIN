@@ -1,0 +1,16 @@
+# Secrets & lokale Daten
+.env
+secrets/
+*.key
+
+# Laufzeit-Daten der Pi-Container
+pi/data/
+
+# NixOS hardware (pro Maschine, nicht committen wenn UUIDs privat)
+# hosts/*/hardware-configuration.nix
+
+# Build outputs
+out/
+result
+result-*
+*.iso

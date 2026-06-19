@@ -1,0 +1,25 @@
+# AEON · GRUB-Theme (Noir Gold)
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#0E0D0B"
+
++ boot_menu {
+  left = 12%
+  top = 42%
+  width = 50%
+  height = 45%
+  item_height = 36
+  item_padding = 8
+  item_spacing = 10
+  item_color = "#9C9384"
+  selected_item_color = "#C9A458"
+}
+
++ label {
+  top = 90%
+  left = 12%
+  width = 76%
+  align = "left"
+  color = "#6A6356"
+  text = "AEON  ·  ↑↓ wählen  ·  Enter starten"
+}

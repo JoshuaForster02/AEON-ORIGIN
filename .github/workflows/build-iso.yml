@@ -1,0 +1,29 @@
+# Baut die AEON-Installer-ISO automatisch (kein x86-Linux nötig).
+# Bei jedem Push auf main → ISO wird gebaut & als Artefakt zum Download bereitgestellt.
+name: build-aeon-iso
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: ISO bauen
+        run: nix build .#nixosConfigurations.aeon-iso.config.system.build.isoImage -o result-iso
+
+      - name: ISO als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: aeon-installer-iso
+          path: result-iso/iso/*.iso
+          if-no-files-found: error

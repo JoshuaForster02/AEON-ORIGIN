@@ -1,0 +1,191 @@
+<!--
+  AEON Windows 11 VM — fertig konfiguriert für Single-GPU-Passthrough
+  =====================================================================
+  Import:  virsh define /etc/aeon/windows-vm.xml
+  Start:   aeon win
+  Stop:    aeon stop
+
+  VOR dem Import anpassen:
+  1. <source file="..."> → Pfad zu deiner Windows 11 ISO
+  2. <source dev="...">  → Pfad zu deiner virtio-win ISO (VirtIO-Treiber)
+  3. <disk ...>          → Speicherpfad für die VM-Festplatte
+  4. PCI-Adressen der GPU prüfen mit:  aeon gpu
+     Falls abweichend: <address domain='0x0000' bus='...' slot='...' function='...'/>
+     → Werte aus lspci -nnvv | grep -A4 "1002:73bf" ablesen
+
+  Nach Windows-Installation:
+  - VirtIO-Treiber aus der zweiten ISO installieren (Gerätemanager)
+  - AMD-Treiber installieren (amdgpu.com)
+-->
+<domain type="kvm">
+  <name>windows</name>
+  <memory unit="GiB">16</memory>
+  <currentMemory unit="GiB">16</currentMemory>
+
+  <!-- Hugepages für maximale RAM-Performance -->
+  <memoryBacking>
+    <hugepages>
+      <page size="2" unit="MiB"/>
+    </hugepages>
+  </memoryBacking>
+
+  <!-- CPU: host-passthrough für beste Gaming-Performance + Hyper-V Enlightenments -->
+  <vcpu placement="static">12</vcpu>
+  <cpu mode="host-passthrough" check="none" migratable="off">
+    <feature policy="require" name="topoext"/>
+    <feature policy="disable" name="hypervisor"/>
+    <!-- Hyper-V: Windows erkennt KVM nicht, läuft wie auf echter Hardware -->
+    <hyperv mode="custom">
+      <relaxed state="on"/>
+      <vapic state="on"/>
+      <spinlocks state="on" retries="8191"/>
+      <vpindex state="on"/>
+      <runtime state="on"/>
+      <synic state="on"/>
+      <stimer state="on"/>
+      <reset state="on"/>
+      <frequencies state="on"/>
+      <reenlightenment state="off"/>
+      <tlbflush state="on"/>
+      <ipi state="on"/>
+    </hyperv>
+  </cpu>
+
+  <!-- UEFI/SecureBoot Firmware (OVMF) — Windows 11 Pflicht -->
+  <os firmware="efi">
+    <type arch="x86_64" machine="q35">hvm</type>
+    <firmware>
+      <feature enabled="yes" name="enrolled-keys"/>
+      <feature enabled="yes" name="secure-boot"/>
+    </firmware>
+    <loader readonly="yes" secure="yes" type="pflash">/run/libvirt/nix-ovmf/OVMF_CODE.fd</loader>
+    <nvram template="/run/libvirt/nix-ovmf/OVMF_VARS.fd">/var/lib/libvirt/qemu/nvram/windows_VARS.fd</nvram>
+    <bootmenu enable="yes"/>
+  </os>
+
+  <features>
+    <acpi/>
+    <apic/>
+    <smm state="on"/>
+    <!-- KVM-spezifische Flags: verstecken dass es eine VM ist -->
+    <kvm>
+      <hidden state="on"/>
+    </kvm>
+    <vmport state="off"/>
+    <ioapic driver="kvm"/>
+  </features>
+
+  <clock offset="localtime">
+    <timer name="hpet" present="no"/>
+    <timer name="hypervclock" present="yes"/>
+    <timer name="tsc" present="yes" mode="native"/>
+  </clock>
+
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+
+  <pm>
+    <suspend-to-mem enabled="no"/>
+    <suspend-to-disk enabled="no"/>
+  </pm>
+
+  <devices>
+    <emulator>/run/current-system/sw/bin/qemu-kvm</emulator>
+
+    <!-- VM-Festplatte (VirtIO für maximale Performance) -->
+    <!-- ANPASSEN: Pfad zur .qcow2 Datei -->
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="writeback" discard="unmap"/>
+      <source file="/var/lib/libvirt/images/windows.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+      <boot order="1"/>
+    </disk>
+
+    <!-- Windows 11 ISO zum Installieren (danach entfernen) -->
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <!-- ANPASSEN: Pfad zur Windows 11 ISO -->
+      <source file="/var/lib/libvirt/images/windows11.iso"/>
+      <target dev="sda" bus="sata"/>
+      <readonly/>
+      <boot order="2"/>
+    </disk>
+
+    <!-- VirtIO-Treiber ISO (für ersten Boot) -->
+    <disk type="file" device="cdrom">
+      <driver name="qemu" type="raw"/>
+      <!-- ANPASSEN: Pfad zur virtio-win ISO -->
+      <source file="/var/lib/libvirt/images/virtio-win.iso"/>
+      <target dev="sdb" bus="sata"/>
+      <readonly/>
+    </disk>
+
+    <!-- Netzwerk: VirtIO (hohe Durchsatz, niedrige Latenz) -->
+    <interface type="network">
+      <source network="default"/>
+      <model type="virtio"/>
+    </interface>
+
+    <!-- USB-Controller für Maus/Tastatur-Passthrough -->
+    <controller type="usb" model="qemu-xhci" ports="15"/>
+
+    <!-- PCIe-Controller für GPU-Passthrough -->
+    <controller type="pci" model="pcie-root"/>
+    <controller type="pci" model="pcie-root-port">
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x01" function="0x0"/>
+    </controller>
+    <controller type="pci" model="pcie-root-port">
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x02" function="0x0"/>
+    </controller>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         RX 6800 GPU PASSTHROUGH — HIER DIE PCI-ADRESSEN ANPASSEN
+         Ausgabe von: aeon gpu  (oder: lspci -nnvv | grep -A2 "1002:73bf")
+         Beispiel: "01:00.0" → bus=0x01, slot=0x00, function=0x0
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- RX 6800 Grafik (Video) -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x01" slot="0x00" function="0x0"/>
+      </source>
+      <address type="pci" domain="0x0000" bus="0x04" slot="0x00" function="0x0" multifunction="on"/>
+    </hostdev>
+
+    <!-- RX 6800 Audio (HDMI/DP) — gleiches Slot wie GPU, function 0x1 -->
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0x0000" bus="0x01" slot="0x00" function="0x1"/>
+      </source>
+      <address type="pci" domain="0x0000" bus="0x04" slot="0x00" function="0x1"/>
+    </hostdev>
+
+    <!-- VirtIO Serial für Guest-Agent (Shutdown/Freeze-Befehle) -->
+    <channel type="unix">
+      <target type="virtio" name="org.qemu.guest_agent.0"/>
+    </channel>
+
+    <!-- Maus: Tablet-Modus vermeidet Maus-Grab im Installer -->
+    <input type="tablet" bus="usb"/>
+    <input type="keyboard" bus="virtio"/>
+
+    <!-- Kein virtueller Display (GPU macht das) — nur für Notfall-Zugriff -->
+    <graphics type="spice" autoport="yes">
+      <listen type="address" address="127.0.0.1"/>
+      <image compression="off"/>
+    </graphics>
+    <video>
+      <model type="none"/>
+    </video>
+
+    <!-- Memory Balloon für dynamisches RAM-Management -->
+    <memballoon model="virtio"/>
+
+    <!-- VirtIO RNG für bessere Entropie in Windows -->
+    <rng model="virtio">
+      <backend model="random">/dev/urandom</backend>
+    </rng>
+
+  </devices>
+</domain>

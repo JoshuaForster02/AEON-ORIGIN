@@ -1,0 +1,19 @@
+# AEON Hub — Reverse Proxy + Dashboard (intern :80, extern via Compose :8080)
+:80 {
+	# API unter /api/* → Hub-API (FastAPI)
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy vitals-api:8000
+	}
+
+	# n8n unter /n8n*
+	handle_path /n8n* {
+		reverse_proxy n8n:5678
+	}
+
+	# alles andere → AEON-Dashboard (statisch)
+	handle {
+		root * /srv/dashboard
+		file_server
+	}
+}

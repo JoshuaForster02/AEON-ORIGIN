@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AEON</title>
+<meta name="description" content="AEON Fleet Dashboard — Joshua's persönliches Command-Center">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --canvas: #0B0A08; --s1: #13110D; --s2: #1A1710; --hair: #24201A;
+    --text: #ECE6D8;   --t2: #9C9384;  --t3: #6A6356;
+    --gold: #C9A458;   --gold-dim: #7A6030; --sage: #6FA98C; --rose: #C46B6B;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--canvas); color: var(--text);
+    font-family: Inter, system-ui, sans-serif;
+    min-height: 100vh; display: flex; justify-content: center;
+  }
+  .app { width: 100%; max-width: 680px; padding-bottom: 48px; }
+
+  /* ── Topbar ── */
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--hair);
+    position: sticky; top: 0; background: var(--canvas); z-index: 10;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .mono-mark {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--gold); display: flex; align-items: center; justify-content: center;
+    color: var(--gold); font-family: Newsreader, serif; font-size: 17px;
+    transition: box-shadow .3s;
+  }
+  .mono-mark:hover { box-shadow: 0 0 12px #C9A45840; }
+  .wordmark { letter-spacing: 4px; font-size: 13px; font-weight: 600; }
+  .status-row { display: flex; align-items: center; gap: 14px; }
+  .chip {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--t2); padding: 3px 8px;
+    border: 1px solid var(--hair); border-radius: 20px;
+    transition: border-color .3s, color .3s;
+  }
+  .chip.live { border-color: var(--gold-dim); color: var(--gold); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--t3); }
+  .dot.on { background: var(--sage); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* ── Hero ── */
+  .hero { padding: 28px 18px 22px; background: linear-gradient(180deg,#16120B,#0B0A08); }
+  .date { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--gold); letter-spacing: 1.5px; }
+  .greet { font-family: Newsreader, serif; font-size: 26px; margin: 6px 0 0; line-height: 1.2; }
+  .sub { font-size: 13px; color: var(--t2); margin-top: 7px; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hair); padding: 0 18px; }
+  .tab {
+    padding: 13px 0; margin-right: 24px; color: var(--t3); font-size: 13px;
+    cursor: pointer; display: flex; align-items: center; gap: 7px;
+    border: none; border-bottom: 2px solid transparent; background: none;
+    font-family: inherit; transition: color .2s, border-color .2s; white-space: nowrap;
+  }
+  .tab:hover { color: var(--t2); }
+  .tab.active { color: var(--text); border-bottom-color: var(--gold); }
+  .tab-icon { font-size: 14px; }
+
+  /* ── Toast-Feedback ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px);
+    background: var(--s1); border: 1px solid var(--hair);
+    border-radius: 10px; padding: 10px 18px; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+    transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s;
+    opacity: 0; z-index: 100; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast-icon { color: var(--gold); }
+
+  /* ── Sections ── */
+  .sec { padding: 16px 18px 4px; }
+  .label { font-size: 10px; letter-spacing: 2px; color: var(--t3); margin-bottom: 10px; font-weight: 500; }
+  .card { background: var(--s1); border: 1px solid var(--hair); border-radius: 13px; overflow: hidden; }
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 14px; border-bottom: 1px solid var(--hair);
+    transition: background .15s;
+  }
+  .row:last-child { border-bottom: 0; }
+  .row:hover { background: var(--s2); }
+  .row-icon { width: 28px; height: 28px; border-radius: 7px; background: var(--s2);
+              display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .row-body { flex: 1; min-width: 0; }
+  .row-title { font-size: 13px; font-weight: 500; }
+  .row-sub { font-size: 11px; color: var(--t2); margin-top: 2px; }
+  .time-badge {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    color: var(--gold); padding: 2px 7px; border: 1px solid var(--gold-dim);
+    border-radius: 4px; flex-shrink: 0;
+  }
+
+  /* ── Vitals Grid ── */
+  .vitals { display: grid; grid-template-columns: repeat(4,1fr); gap: 9px; }
+  .tile {
+    background: var(--s1); border: 1px solid var(--hair); border-radius: 12px;
+    padding: 12px 11px; transition: border-color .25s, transform .2s;
+  }
+  .tile:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
+  .tile-icon { color: var(--gold); font-size: 13px; }
+  .tile-val { font-family: 'IBM Plex Mono', monospace; font-size: 19px; margin-top: 6px;
+              display: flex; align-items: baseline; gap: 3px; }
+  .tile-unit { font-size: 11px; color: var(--t2); }
+  .tile-key { font-size: 10px; color: var(--t2); margin-top: 3px; letter-spacing: .5px; }
+  .tile-bar { height: 2px; background: var(--hair); border-radius: 2px; margin-top: 8px; }
+  .tile-fill { height: 2px; background: var(--gold); border-radius: 2px; transition: width .6s ease; }
+
+  /* ── Mode-Control (interaktive Tabs) ── */
+  .mode-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 9px; }
+  .mode-btn {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    padding: 14px 14px 12px; background: var(--s1); border: 1px solid var(--hair);
+    border-radius: 12px; cursor: pointer; font-family: inherit; text-align: left;
+    transition: border-color .25s, background .2s, transform .15s;
+  }
+  .mode-btn:hover { border-color: var(--gold-dim); background: var(--s2); transform: translateY(-1px); }
+  .mode-btn.active { border-color: var(--gold); background: #211B0D; }
+  .mode-btn.sending { opacity: .6; pointer-events: none; }
+  .mode-btn-icon { font-size: 18px; }
+  .mode-btn-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .mode-btn-desc { font-size: 11px; color: var(--t2); }
+  .mode-btn.active .mode-btn-title { color: var(--gold); }
+
+  /* ── TRON ── */
+  .tron-wrap { margin-top: 4px; }
+  .tron {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--s1); border: 1px solid var(--hair);
+    border-radius: 12px; padding: 11px 14px; transition: border-color .25s;
+  }
+  .tron:focus-within { border-color: var(--gold-dim); }
+  .tron-star { color: var(--gold); font-size: 16px; flex-shrink: 0; }
+  .tron input {
+    flex: 1; background: none; border: 0; color: var(--text);
+    font-family: inherit; font-size: 14px; outline: none;
+  }
+  .tron input::placeholder { color: var(--t3); }
+  .tron-send {
+    background: none; border: 0; color: var(--gold); cursor: pointer;
+    font-size: 18px; padding: 2px 4px; line-height: 1;
+    transition: opacity .15s; flex-shrink: 0;
+  }
+  .tron-send:hover { opacity: .75; }
+  .reply {
+    font-size: 13px; color: var(--t2); padding: 12px 14px; margin-top: 8px;
+    border-left: 2px solid var(--gold); background: var(--s1);
+    border-radius: 0 8px 8px 0; white-space: pre-wrap; line-height: 1.6;
+    display: none;
+  }
+  .reply.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <header class="bar">
+    <div class="brand">
+      <div class="mono-mark">A</div>
+      <span class="wordmark">AEON</span>
+    </div>
+    <div class="status-row">
+      <div class="chip" id="tron-chip">
+        <span class="dot" id="tron-dot"></span>
+        <span id="tron-state">TRON …</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="date" id="date">—</div>
+    <h1 class="greet">Guten Tag, Joshua.</h1>
+    <p class="sub" id="briefing-line">Lade Briefing …</p>
+  </section>
+
+  <!-- Tabs -->
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab active" data-tab="vitals" role="tab" aria-selected="true">
+      <span class="tab-icon">◉</span> Vitals
+    </button>
+    <button class="tab" data-tab="modes" role="tab" aria-selected="false">
+      <span class="tab-icon">◎</span> Modi
+    </button>
+    <button class="tab" data-tab="tron" role="tab" aria-selected="false">
+      <span class="tab-icon">✦</span> TRON
+    </button>
+  </nav>
+
+  <!-- Panel: Vitals -->
+  <div id="panel-vitals">
+    <div class="sec">
+      <div class="label">HEUTE</div>
+      <div class="vitals" id="vitals-grid">
+        <div class="tile"><div class="tile-icon">✦</div><div class="tile-val">—</div><div class="tile-key">Streak</div><div class="tile-bar"><div class="tile-fill" style="width:6%"></div></div></div>
+        <div class="tile"><div class="tile-icon">◷</div><div class="tile-val">—</div><div class="tile-key">Fokus</div><div class="tile-bar"><div class="tile-fill" style="width:6%"></div></div></div>
+        <div class="tile"><div class="tile-icon">☾</div><div class="tile-val">—</div><div class="tile-key">Schlaf</div><div class="tile-bar"><div class="tile-fill" style="width:6%"></div></div></div>
+        <div class="tile"><div class="tile-icon">✚</div><div class="tile-val">—</div><div class="tile-key">Training</div><div class="tile-bar"><div class="tile-fill" style="width:6%"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Modi -->
+  <div id="panel-modes" style="display:none">
+    <div class="sec">
+      <div class="label">PC-STEUERUNG</div>
+      <div class="mode-grid">
+        <button class="mode-btn" id="btn-focus" data-mode="focus" title="Fokus-Modus: Ablenkungen gesperrt, Lern-Apps starten">
+          <span class="mode-btn-icon">🎯</span>
+          <span class="mode-btn-title">Focus</span>
+          <span class="mode-btn-desc">Anki · Amboss · Perplexity · Sperren aktiv</span>
+        </button>
+        <button class="mode-btn" id="btn-unfocus" data-mode="unfocus" title="Normal-Modus: alle Sperren aufheben">
+          <span class="mode-btn-icon">◎</span>
+          <span class="mode-btn-title">Normal</span>
+          <span class="mode-btn-desc">Sperren aufheben, freier Betrieb</span>
+        </button>
+        <button class="mode-btn" id="btn-game" data-mode="game" title="Gaming-Modus: Steam starten">
+          <span class="mode-btn-icon">◭</span>
+          <span class="mode-btn-title">Gaming</span>
+          <span class="mode-btn-desc">Steam / Proton / GameMode</span>
+        </button>
+        <button class="mode-btn" id="btn-windows" data-mode="windows" title="Windows-VM starten (GPU-Passthrough)">
+          <span class="mode-btn-icon">⊞</span>
+          <span class="mode-btn-title">Windows</span>
+          <span class="mode-btn-desc">VM starten · GPU-Passthrough</span>
+        </button>
+      </div>
+      <p style="font-size:11px;color:var(--t3);margin-top:12px;padding:0 2px">
+        PC muss über Tailscale erreichbar sein. SSH-Key des Pi muss auf dem PC in <code>~/.ssh/authorized_keys</code> stehen.
+      </p>
+    </div>
+  </div>
+
+  <!-- Panel: TRON -->
+  <div id="panel-tron" style="display:none">
+    <div class="sec">
+      <div class="label">FRAG TRON</div>
+      <div class="tron-wrap">
+        <div class="tron">
+          <span class="tron-star">✦</span>
+          <input id="tron-input" placeholder="Frag TRON …" autocomplete="off" autocorrect="off">
+          <button class="tron-send" id="tron-send" title="Senden">➤</button>
+        </div>
+        <div class="reply" id="tron-reply"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast-Overlay -->
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="toast-icon">✦</span>
+  <span id="toast-msg">—</span>
+</div>
+
+<script>
+const API = "/api";
+const fmt = v => (v == null) ? "—" : v;
+let toastTimer;
+
+// ── Datum ──
+function setDate() {
+  const d = new Date();
+  const days = ["SO","MO","DI","MI","DO","FR","SA"];
+  const mon  = ["JAN","FEB","MÄR","APR","MAI","JUN","JUL","AUG","SEP","OKT","NOV","DEZ"];
+  const p = n => String(n).padStart(2,"0");
+  document.getElementById("date").textContent =
+    `${days[d.getDay()]} · ${p(d.getDate())} ${mon[d.getMonth()]} ${d.getFullYear()} · ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ── Toast ──
+function toast(msg, ms = 3000) {
+  const el = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), ms);
+}
+
+// ── Tabs ──
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => { x.classList.remove("active"); x.setAttribute("aria-selected","false"); });
+  t.classList.add("active"); t.setAttribute("aria-selected","true");
+  ["vitals","modes","tron"].forEach(p =>
+    document.getElementById("panel-" + p).style.display = (p === t.dataset.tab ? "" : "none"));
+}));
+
+// ── Vitals ──
+function tile(icon, val, unit, key, pct) {
+  const display = val != null ? `${val}<span class="tile-unit"> ${unit}</span>` : "—";
+  return `<div class="tile">
+    <div class="tile-icon">${icon}</div>
+    <div class="tile-val">${display}</div>
+    <div class="tile-key">${key}</div>
+    <div class="tile-bar"><div class="tile-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
+async function loadVitals() {
+  try {
+    const v = await (await fetch(API + "/vitals")).json();
+    const streak  = v.streak?.value;
+    const focus   = v.focus?.value;
+    const sleep   = v.sleep?.value;
+    const train   = v.training?.value;
+    document.getElementById("vitals-grid").innerHTML =
+      tile("✦", streak, "Tage", "Anki-Streak", streak ? Math.min(100, streak * 3.3) : 6) +
+      tile("◷", focus,  "h",    "Fokus",        focus  ? Math.min(100, focus / 8 * 100) : 6) +
+      tile("☾", sleep,  "h",    "Schlaf",        sleep  ? Math.min(100, sleep / 9 * 100) : 6) +
+      tile("✚", train,  "min",  "Training",      train  ? Math.min(100, train / 60 * 100) : 6);
+  } catch(e) {
+    document.getElementById("vitals-grid").innerHTML =
+      `<p style="grid-column:1/-1;font-size:12px;color:var(--t3);padding:4px 2px">Vitals nicht erreichbar — Pi-Hub up?</p>`;
+  }
+}
+
+async function loadBriefing() {
+  try {
+    const b = await (await fetch(API + "/briefing")).json();
+    document.getElementById("briefing-line").textContent = b.line;
+  } catch { document.getElementById("briefing-line").textContent = "Briefing nicht erreichbar."; }
+}
+
+// ── TRON Status ──
+async function pingTron() {
+  const dot = document.getElementById("tron-dot");
+  const st  = document.getElementById("tron-state");
+  const chip = document.getElementById("tron-chip");
+  try {
+    const r = await (await fetch(API + "/tron", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({prompt: "ping"})
+    })).json();
+    const online = r.via === "ollama";
+    dot.classList.toggle("on", online);
+    chip.classList.toggle("live", online);
+    st.textContent = online ? "TRON aktiv" : "TRON offline";
+  } catch { dot.classList.remove("on"); chip.classList.remove("live"); st.textContent = "TRON offline"; }
+}
+
+// ── TRON Frage ──
+async function askTron() {
+  const inp = document.getElementById("tron-input");
+  const out = document.getElementById("tron-reply");
+  const q = inp.value.trim();
+  if (!q) return;
+  out.classList.add("visible");
+  out.textContent = "TRON denkt …";
+  inp.value = "";
+  try {
+    const r = await (await fetch(API + "/tron", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({prompt: q})
+    })).json();
+    out.textContent = r.reply;
+  } catch(e) { out.textContent = "Fehler: " + e; }
+}
+document.getElementById("tron-send").addEventListener("click", askTron);
+document.getElementById("tron-input").addEventListener("keydown", e => { if (e.key === "Enter") askTron(); });
+
+// ── Modus-Buttons ──
+document.querySelectorAll(".mode-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const mode = btn.dataset.mode;
+    btn.classList.add("sending");
+    toast(`Sende Befehl: ${mode} …`);
+    try {
+      const r = await (await fetch(API + "/mode", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({mode})
+      })).json();
+      if (r.ok) {
+        document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        toast(`✓ ${mode} aktiviert`);
+      } else {
+        toast(`⚠ Fehler: ${r.stderr || "PC nicht erreichbar"}`, 5000);
+      }
+    } catch(e) {
+      toast(`✗ Verbindungsfehler: ${e}`, 5000);
+    } finally {
+      btn.classList.remove("sending");
+    }
+  });
+});
+
+// ── Init ──
+setDate();
+loadVitals();
+loadBriefing();
+pingTron();
+setInterval(setDate, 30000);
+setInterval(loadVitals, 60000);
+setInterval(pingTron, 30000);
+</script>
+</body>
+</html>
