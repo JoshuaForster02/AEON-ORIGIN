@@ -195,12 +195,5 @@ in
     }
   ];
 
-  # ── AMD-Navi-Reset-Fix: stabiler GPU-Handoff in die VM (gegen Freeze) ──
-  boot.extraModulePackages = [ config.boot.kernelPackages.vendor-reset ];
-  boot.kernelModules = [ "vendor-reset" ];
-  services.udev.extraRules = ''
-    SUBSYSTEM=="pci", ATTR{vendor}=="0x1002", ATTR{device}=="0x73bf", ATTR{reset_method}="device_specific"
-  '';
-
   system.stateVersion = "25.05";
 }
