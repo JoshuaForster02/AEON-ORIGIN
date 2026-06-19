@@ -16,6 +16,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
+    ../../modules/aeon-ota.nix
     ../../modules/aeon-theme.nix     # AEON-Design (Stylix + Wallpaper)
     ../../modules/tailscale.nix      # Fleet-Mesh
     ../../modules/aeon-modes.nix     # aeon-focus / aeon-unfocus

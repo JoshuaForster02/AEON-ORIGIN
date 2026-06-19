@@ -7,7 +7,7 @@ secrets/
 pi/data/
 
 # NixOS hardware (pro Maschine, nicht committen wenn UUIDs privat)
-# hosts/*/hardware-configuration.nix
+hosts/*/hardware-configuration.nix
 
 # Build outputs
 out/
