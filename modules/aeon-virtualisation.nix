@@ -19,8 +19,14 @@
     "kvm_amd.nested=1"   # Nested Virtualisation (schadet nicht)
   ];
 
-  # Normalbetrieb: amdgpu treibt die GPU (Desktop). VFIO/vendor_reset nur im Gaming-Profil.
-  boot.kernelModules = [ "kvm_amd" ];
+  # Normalbetrieb: amdgpu treibt die GPU (Desktop). vendor_reset sorgt dafuer,
+  # dass die Navi-GPU beim Owner-Wechsel (amdgpu <-> vfio-pci) richtig
+  # zuruecksetzt wird - sonst bleibt der Bildschirm beim VM-Start schwarz
+  # ("AMD Reset Bug"). Keine 16-GB-Hugepages, keine vfio-Bindung-at-boot hier!
+  boot.kernelModules = [ "kvm_amd" "vendor_reset" ];
+  boot.extraModulePackages = lib.mkIf (builtins.hasAttr "vendor-reset" config.boot.kernelPackages) [
+    config.boot.kernelPackages.vendor-reset
+  ];
 
   # ── KVM / libvirt ─────────────────────────────────────────────────────────
   virtualisation.libvirtd = {
@@ -38,7 +44,9 @@
     };
 
     # ── GPU-Passthrough Hook ───────────────────────────────────────────────
-    # NixOS verlinkt das Skript automatisch nach /var/lib/libvirt/hooks/qemu
+    # Wird via qemu.d/aeon-gpu abgelegt. Der Dispatcher /etc/libvirt/hooks/qemu
+    # (siehe environment.etc unten) ruft das auf - OHNE den Dispatcher feuert
+    # das hier NIE, das war der Bug, der den Boot-Bildschirm killte.
     hooks.qemu."aeon-gpu" = pkgs.writeShellScript "aeon-gpu-hook" ''
       GUEST="$1"
       OP="$2"
@@ -51,13 +59,17 @@
       VIRSH="${pkgs.libvirt}/bin/virsh"
       MODPROBE="${pkgs.kmod}/bin/modprobe"
       SYSTEMCTL="${pkgs.systemd}/bin/systemctl"
+      LOGGER="${pkgs.util-linux}/bin/logger"
 
-      # PCI-Adressen der RX 6800 dynamisch ermitteln
-      vaddr=$($LSPCI -Dn -d "1002:73bf" | awk 'NR==1{print $1}')
-      aaddr=$($LSPCI -Dn -d "1002:ab28" | awk 'NR==1{print $1}')
+      # PCI-Adressen der RX 6800 FEST verdrahtet (laut Handoff-Doku stabil fuer
+      # diese Hardware, IOMMU-Gruppe 18). lspci innerhalb des Hook-Kontexts
+      # ist unzuverlaessig (vermutlich systemd-Sandboxing von libvirtd) und
+      # fand die Karte NIE -> der ganze Hook brach vorher immer sofort ab.
+      vaddr="0000:09:00.0"
+      aaddr="0000:09:00.1"
 
-      if [ -z "$vaddr" ]; then
-        logger -t aeon-gpu "FEHLER: RX 6800 (1002:73bf) nicht gefunden — Passthrough abgebrochen"
+      if [ ! -e "/sys/bus/pci/devices/$vaddr" ]; then
+        $LOGGER -t aeon-gpu "FEHLER: $vaddr nicht in /sys/bus/pci/devices — Passthrough abgebrochen"
         exit 0
       fi
 
@@ -66,7 +78,7 @@
       aud="pci_$(echo "$aaddr" | tr ':.' '_')"
 
       detach() {
-        logger -t aeon-gpu "GPU detach START — Desktop pausiert"
+        $LOGGER -t aeon-gpu "GPU detach START — Desktop pausiert"
 
         # 1. Display-Manager beenden (KDE Plasma)
         $SYSTEMCTL stop display-manager.service
@@ -79,21 +91,26 @@
         echo efi-framebuffer.0 \
           > /sys/bus/platform/drivers/efi-framebuffer/unbind 2>/dev/null || true
 
-        # 3. amdgpu-Treiber entladen (vendor-reset kümmert sich um sicheren Reset)
+        # 3. amdgpu-Treiber entladen
         $MODPROBE -r amdgpu         || true
         $MODPROBE -r drm_kms_helper || true
         sleep 1
+
+        # 3b. vendor_reset: korrekten Hardware-Reset fuer Navi erzwingen,
+        #     BEVOR vfio-pci die Karte uebernimmt (AMD Reset Bug Fix)
+        $MODPROBE vendor_reset || true
+        echo device_specific > "/sys/bus/pci/devices/$vaddr/reset_method" 2>/dev/null || true
 
         # 4. vfio-pci aktivieren & GPU an VM übergeben
         $MODPROBE vfio-pci || true
         $VIRSH nodedev-detach "$vid" || true
         [ -n "$aaddr" ] && $VIRSH nodedev-detach "$aud" || true
 
-        logger -t aeon-gpu "GPU detach DONE — Windows-VM übernimmt"
+        $LOGGER -t aeon-gpu "GPU detach DONE — Windows-VM übernimmt"
       }
 
       attach() {
-        logger -t aeon-gpu "GPU attach START — Linux-Desktop kehrt zurück"
+        $LOGGER -t aeon-gpu "GPU attach START — Linux-Desktop kehrt zurück"
 
         # 1. GPU von VM zurückgeben
         $VIRSH nodedev-reattach "$vid" || true
@@ -111,7 +128,7 @@
 
         # 4. KDE Plasma starten
         $SYSTEMCTL start display-manager.service
-        logger -t aeon-gpu "GPU attach DONE — Linux-Desktop aktiv"
+        $LOGGER -t aeon-gpu "GPU attach DONE — Linux-Desktop aktiv"
       }
 
       case "$OP" in
@@ -165,4 +182,23 @@
       echo ""
     '')
   ];
+
+  # ── GPU-Hook-Dispatcher ─────────────────────────────────────────────────
+  # libvirtd ruft NUR /etc/libvirt/hooks/qemu auf. Diese Datei dispatcht in
+  # qemu.d/* (z.B. aeon-gpu). Ohne das hier feuert der GPU-Hook NIE.
+  environment.etc."libvirt/hooks/qemu" = {
+    mode = "0755";
+    text = ''
+      #!/run/current-system/sw/bin/bash
+      HOOKPATH="/var/lib/libvirt/hooks/qemu.d"
+      if [ -d "$HOOKPATH" ]; then
+        for file in "$HOOKPATH"/*; do
+          if [ -x "$file" ]; then
+            "$file" "$@"
+          fi
+        done
+      fi
+      exit 0
+    '';
+  };
 }
